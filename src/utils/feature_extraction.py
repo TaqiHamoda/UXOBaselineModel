@@ -1,6 +1,4 @@
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
-from skimage.filters import gabor_kernel
-from scipy import ndimage as ndi
 from scipy.stats import skew, kurtosis
 import numpy as np
 import cv2
@@ -8,10 +6,10 @@ from typing import List, Literal
 from threading import Thread
 
 
-# TODO: Implement the log-gabor filter: https://peterkovesi.com/matlabfns/PhaseCongruency/Docs/convexpl.html
-# TODO: Use the local energy instead of variance: https://stackoverflow.com/questions/20608458/gabor-feature-extraction
+# https://stackoverflow.com/questions/33781502/how-to-get-the-real-and-imaginary-parts-of-a-gabor-kernel-matrix-in-opencv
 KERNELS = [
-    gabor_kernel(frequency, theta=np.pi * theta / 4, sigma_x=sigma, sigma_y=sigma)
+    cv2.getGaborKernel(ksize=(5, 5), sigma=sigma, theta=np.pi * theta / 4, lambd=1/frequency, gamma=1, psi=0) +  # Real part (the cosine)
+    1j * cv2.getGaborKernel(ksize=(5, 5), sigma=sigma, theta=np.pi * theta / 4, lambd=1/frequency, gamma=1, psi=np.pi/2)  # Complex part (the sine)
     for theta in range(4)
     for sigma in (1, 3)
     for frequency in (0.05, 0.25)
@@ -24,7 +22,10 @@ def extract_color_features(images, bins=8):
 
 
 def extract_lbp_features(images, radius=3, n_points=24):
-    lbp_features = [local_binary_pattern(img, n_points, radius, method='uniform').flatten() for img in images]
+    lbp_features = []
+    for img in images:
+        lbp_feature = local_binary_pattern(img, n_points, radius, method='uniform').flatten()
+        lbp_features.append(np.histogram(lbp_feature, int(np.max(lbp_feature) + 1))[0])
     return np.nan_to_num(lbp_features)
 
 
@@ -40,11 +41,21 @@ def extract_glcm_features(images, distances=[1], angles=[0, np.pi/4, np.pi/2, 3*
 def extract_gabor_features(images):
     feats = []
     for image in images:
-        gabor_features = np.zeros((len(KERNELS), 2), dtype=np.double)
-        for k, kernel in enumerate(KERNELS):
-            filtered = ndi.convolve(image, kernel, mode='wrap')
-            gabor_features[k, 0] = filtered.mean()
-            gabor_features[k, 1] = filtered.var()
+        gabor_features = np.zeros((len(KERNELS), 3), dtype=np.double)
+        for i, kernel in enumerate(KERNELS):
+            response_real = cv2.filter2D(src=image, ddepth=-1, kernel=np.real(kernel))
+            response_imag = cv2.filter2D(src=image, ddepth=-1, kernel=np.imag(kernel))
+
+            # Calculate features
+            response_squared = response_real**2 + response_imag**2
+            local_energy = np.sum(response_squared)
+            mean_amplitude = np.mean(np.sqrt(response_squared))
+            phase_amplitude = np.atan2(response_imag, response_real)
+
+            gabor_features[i, 0] = local_energy
+            gabor_features[i, 1] = mean_amplitude
+            gabor_features[i, 2] = phase_amplitude
+
         feats.append(gabor_features.flatten())
 
     return np.nan_to_num(feats)
@@ -180,14 +191,16 @@ def extract_symmetry_features(depth_patch):
     # Apply Log Gabor filter to get the symmetry image
     feats = []
     for kernel in KERNELS:
-        real =  ndi.convolve(depth_patch, np.real(kernel), mode='wrap')
-        imag = ndi.convolve(depth_patch, np.imag(kernel), mode='wrap')
+        response_real = cv2.filter2D(src=depth_patch, ddepth=-1, kernel=np.real(kernel))
+        response_imag = cv2.filter2D(src=depth_patch, ddepth=-1, kernel=np.imag(kernel))
 
-        phase = np.arctan2(imag, real)
-        magnitude = np.sqrt(real**2 + imag**2)
+        # Calculate features
+        response_squared = response_real**2 + response_imag**2
+        local_energy = np.sum(response_squared)
+        mean_amplitude = np.mean(np.sqrt(response_squared))
+        phase_amplitude = np.atan2(response_imag, response_real)
 
-        # Calculate mean and variance of the symmetry image
-        feats.extend((np.mean(phase), np.var(phase), np.mean(magnitude), np.var(magnitude)))
+        feats.extend((local_energy, mean_amplitude, phase_amplitude))
 
     return feats
 
