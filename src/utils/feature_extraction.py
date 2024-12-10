@@ -1,9 +1,8 @@
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 from scipy.stats import skew, kurtosis
-import numpy as np
-import cv2
 from typing import List, Literal
 from threading import Thread
+import cv2, numpy as np, time
 
 
 # https://stackoverflow.com/questions/33781502/how-to-get-the-real-and-imaginary-parts-of-a-gabor-kernel-matrix-in-opencv
@@ -17,7 +16,7 @@ KERNELS = [
 
 
 def extract_color_features(image, bins=8, range=(0, 256)):
-    color_features, _ = np.histogram(cv2.calcHist([image], [0], None, [bins], range), bins=bins, range=range, density=True)
+    color_features, _ = np.histogram(image.flatten(), bins=bins, range=range, density=True)
     return color_features
 
 
@@ -46,9 +45,9 @@ def extract_gabor_features(image):
         response_squared = response_real**2 + response_imag**2
         local_energy = np.sum(response_squared)
         mean_amplitude = np.mean(np.sqrt(response_squared))
-        phase_amplitude = np.atan2(response_imag, response_real)
+        phase_amplitude = np.atan2(response_imag, response_real).flatten()
 
-        feats.extend((local_energy, mean_amplitude, phase_amplitude))
+        feats.extend((local_energy, mean_amplitude, np.mean(phase_amplitude), np.std(phase_amplitude), skew(phase_amplitude), kurtosis(phase_amplitude)))
 
     return feats
 
@@ -178,7 +177,7 @@ def extract_curvatures_and_surface_normals(depth_patch):
 
 
 def extract_features(images_gray, images_hsv, depth: np.ndarray | None=None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-    logger = lambda name, f: (print(f"Started processing {name}"), f(), print(f"Finished processing {name}"))
+    logger = lambda name, t, f: (print(f"Started processing {name}"), f(), print(f"Finished processing {name}: {round(time.perf_counter() - t, 2)} seconds"))
 
     features = {}
 
@@ -186,30 +185,30 @@ def extract_features(images_gray, images_hsv, depth: np.ndarray | None=None) -> 
 
     # Add color features
     func = lambda: features.update({'gray': np.nan_to_num([extract_color_features(img) for img in images_gray])})
-    ts.append(Thread(target=logger, args=("Gray Color Features", func)))
+    ts.append(Thread(target=logger, args=("Gray Color Features", time.perf_counter(), func)))
 
     # Add color HSV features
-    func = lambda: features.update({'hsv': np.nan_to_num([extract_color_features(img) for img in images_hsv])})
-    ts.append(Thread(target=logger, args=("HSV Color Features", func)))
+    func = lambda: features.update({'hsv': np.nan_to_num([extract_color_features(img[:, :, 0]) for img in images_hsv])})
+    ts.append(Thread(target=logger, args=("HSV Color Features", time.perf_counter(), func)))
 
     func = lambda: features.update({'lbp': np.nan_to_num([extract_lbp_features(img) for img in images_gray])})
-    ts.append(Thread(target=logger, args=("LBP Features", func)))
+    ts.append(Thread(target=logger, args=("LBP Features", time.perf_counter(), func)))
 
     func = lambda: features.update({'glcm': np.nan_to_num([extract_glcm_features(img) for img in images_gray])})
-    ts.append(Thread(target=logger, args=("GLCM Features", func)))
+    ts.append(Thread(target=logger, args=("GLCM Features", time.perf_counter(), func)))
 
     func = lambda: features.update({'gabor': np.nan_to_num([extract_gabor_features(img) for img in images_gray])})
-    ts.append(Thread(target=logger, args=("Gabor Features", func)))
+    ts.append(Thread(target=logger, args=("Gabor Features", time.perf_counter(), func)))
 
     if depth is not None:
         func = lambda: features.update({'principal plane': np.nan_to_num([extract_principal_plane_features(d) for d in depth])})
-        ts.append(Thread(target=logger, args=("Principal Plane Features", func)))
+        ts.append(Thread(target=logger, args=("Principal Plane Features", time.perf_counter(), func)))
 
         func = lambda: features.update({'curvatures': np.nan_to_num([extract_curvatures_and_surface_normals(d) for d in depth])})
-        ts.append(Thread(target=logger, args=("Curvature and Surface Normal Features", func)))
+        ts.append(Thread(target=logger, args=("Curvature and Surface Normal Features", time.perf_counter(), func)))
 
         func = lambda: features.update({'symmetry': np.nan_to_num([extract_gabor_features(d) for d in depth])})
-        ts.append(Thread(target=logger, args=("Symmetry Features", func)))
+        ts.append(Thread(target=logger, args=("Symmetry Features", time.perf_counter(), func)))
 
     for t in ts:
         t.start()

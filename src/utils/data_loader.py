@@ -9,7 +9,7 @@ from .feature_extraction import extract_features
 from .image_processing import process_images
 
 
-def load_data(images_dir: str, depth_dir: str | None = None, subset: int=0) -> tuple[np.ndarray, np.ndarray, list[str]]:
+def load_data(images_dir: str, depth_dir: str | None = None, subset: int = 0) -> tuple[np.ndarray, np.ndarray, list[str]]:
     classes = os.listdir(images_dir)
     f_names = []
 
@@ -20,9 +20,7 @@ def load_data(images_dir: str, depth_dir: str | None = None, subset: int=0) -> t
 
     weights /= np.sum(weights)
 
-    labels = []
-    images = []
-    depths = []
+    labels, images, depths = [], [], []
     for i, (class_name, image_names) in enumerate(zip(classes, f_names)):
         class_image_dir = os.path.join(images_dir, class_name)
         class_depth_dir = os.path.join(depth_dir, class_name)
@@ -47,7 +45,7 @@ def load_data(images_dir: str, depth_dir: str | None = None, subset: int=0) -> t
     return np.array(images), depths if depths.size > 0 else None, labels
 
 
-def save_features(images_dir, depth_dir, features_dir, n_components=1000, subset: int=0):
+def save_features(images_dir, depth_dir, features_dir, n_components=1000, subset: int = 0):
     get_time = lambda t: round(time.perf_counter() - t, 2)
     get_pipeline = lambda: Pipeline([
         ('scaling', StandardScaler()),
@@ -86,8 +84,11 @@ def save_features(images_dir, depth_dir, features_dir, n_components=1000, subset
     print(f"Extracted features: {get_time(t_start)}s")
 
     pipeline = get_pipeline()
-    features = pipeline.fit_transform(np.concatenate(features_3d, axis=1))
+    features = np.concatenate(features_3d, axis=1)
 
+    print(f"Features 3D Shape: {features.shape}")
+
+    features = pipeline.fit_transform(features)
     with open(f"{features_dir}/pipeline_3D.pkl", 'wb') as f:
         pickle.dump(pipeline, f)
 
@@ -97,8 +98,11 @@ def save_features(images_dir, depth_dir, features_dir, n_components=1000, subset
     print("Saved normalized 3D features")
 
     pipeline = get_pipeline()
-    features = pipeline.fit_transform(np.concatenate(features_2d + features_3d, axis=1))
+    features = np.concatenate(features_2d + features_3d, axis=1)
 
+    print(f"Features 2.5D Shape: {features.shape}")
+
+    features = pipeline.fit_transform(features)
     with open(f"{features_dir}/pipeline_25D.pkl", 'wb') as f:
         pickle.dump(pipeline, f)
 
@@ -111,8 +115,11 @@ def save_features(images_dir, depth_dir, features_dir, n_components=1000, subset
     print("Saved normalized 2.5D features")
 
     pipeline = get_pipeline()
-    features = pipeline.fit_transform(np.concatenate(features_2d, axis=1))
+    features = np.concatenate(features_2d, axis=1)
 
+    print(f"Features 2D Shape: {features.shape}")
+
+    features = pipeline.fit_transform(features)
     with open(f"{features_dir}/pipeline_2D.pkl", 'wb') as f:
         pickle.dump(pipeline, f)
 

@@ -12,16 +12,16 @@ from classification.SVM import SVMModel
 from classification.SVMLinear import SVMLinearModel
 
 
-# Constants for directory paths
-IMAGES_DIR = '/home/lucky/Development/CIRS/BaselineModel/data/images/'
-FEATURES_2D_DIR = '/home/lucky/Development/CIRS/BaselineModel/data/datasets/miami/dataset_2d/'
-DEPTH_DIR = '/home/lucky/Development/CIRS/BaselineModel/data/datasets/miami/dataset_3d/'
-RESULTS_DIR = '/home/lucky/Development/CIRS/BaselineModel/data/results/'
-# MODELS_DIR = '/home/lucky/Development/CIRS/BaselineModel/data/models/'
-# FEATURES_DIR = '/home/lucky/Development/CIRS/BaselineModel/data/features/'
+SOURCE_DIR = '/home/lucky/Development/CIRS/UXOBaselineModel/'
 
-FEATURES_DIR = '/home/lucky/Development/CIRS/BaselineModel/jaguar/features'
-MODELS_DIR = '/home/lucky/Development/CIRS/BaselineModel/jaguar/models'
+# Constants for directory paths
+IMAGES_DIR = f'{SOURCE_DIR}/data/images/'
+FEATURES_2D_DIR = f'{SOURCE_DIR}/data/datasets/miami/dataset_2d/'
+DEPTH_DIR = f'{SOURCE_DIR}/data/datasets/miami/dataset_3d/'
+RESULTS_DIR = f'{SOURCE_DIR}/data/results/'
+MODELS_DIR = f'{SOURCE_DIR}/data/models/'
+FEATURES_DIR = f'{SOURCE_DIR}/data/features/'
+
 
 def train_model(dimension='25'):
     # Load features and encode labels
@@ -57,20 +57,8 @@ def train_model(dimension='25'):
         print(classification_report(y_test_original, y_pred_original, zero_division=0), file=f)
 
 
-def run_inference(image_path, depth_path, region_size=400, window_size=400, dimension='25'):
+def get_masks_centroids(img, depth, mask, centroids, window_size=400, dimension='25'):
     print(f"Running inference ({dimension}D) on:\n{image_path}\n")
-
-    img = cv2.imread(image_path)
-    depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
-
-    print("Applying Superpixel Segmentation")
-    mask = superpixel_segmentation(img, ruler=1, region_size=region_size)
-    centroids = calculate_centroids(mask)
-
-    # segmented = apply_superpixel_masks(img, mask, mode='contours')
-    # plt.imshow(cv2.cvtColor(segmented, cv2.COLOR_BGR2RGB))
-    # plt.scatter(centroids[:, 0], centroids[:, 1], s=5, c='red')
-    # plt.show()
 
     # Cut out batches that are centered around the centroids
     patches = []
@@ -106,9 +94,6 @@ def run_inference(image_path, depth_path, region_size=400, window_size=400, dime
 
         depths.append(d)
 
-    del centroids
-    gc.collect()
-
     print("Processing patches")
 
     gray_images, hsv_images = process_images(patches)
@@ -119,9 +104,6 @@ def run_inference(image_path, depth_path, region_size=400, window_size=400, dime
         features = np.concatenate(features_3d, axis=1)
     else:
         features = np.concatenate(features_2d + features_3d, axis=1)
-
-    del patches, gray_images, hsv_images
-    gc.collect()
 
     with open(f"{FEATURES_DIR}/pipeline_{dimension}D.pkl", 'rb') as f:
         pipeline = pickle.load(f)
@@ -136,34 +118,75 @@ def run_inference(image_path, depth_path, region_size=400, window_size=400, dime
 
     y_pred = model.evaluate(features)
 
-    uxo_masks = np.isin(mask, np.where(y_pred == 1)).astype(int)
+    uxo_centroids = np.where(y_pred == 1)
+
+    uxo_masks = np.isin(mask, uxo_centroids).astype(int)
+    uxo_masks[uxo_masks == 0] = -1
+    return uxo_masks, centroids[uxo_centroids]
+
+def _run_inference(img, depth, mask, centroids, window_size=400, dimension='25'):
+    uxo_masks, _ = get_masks_centroids(img, depth, mask, centroids, window_size=window_size, dimension=dimension)
+    return apply_superpixel_masks(img, uxo_masks, mode='highlight')
+
+
+def run_inference(image_path, depth_path, region_size=400, window_size=400, dimension='25'):
+    print(f"Running inference ({dimension}D) on:\n{image_path}\n")
+
+    img = cv2.imread(image_path)
+    depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+
+    print("Applying Superpixel Segmentation")
+    mask = superpixel_segmentation(img, ruler=1, region_size=region_size)
+    centroids = calculate_centroids(mask)
+
+    return _run_inference(img, depth, mask, centroids, window_size=window_size, dimension=dimension)
+
+
+def run_inference_neighbor_polling(image_path, depth_path, mini_mask, mini_centroids, large_mask, large_centroids, window_size=400, dimension='25', radius=200, neighbor_threshold=4):
+    print(f"Running neighbor polling inference ({dimension}D) on:\n{image_path}\n")
+
+    img = cv2.imread(image_path)
+    depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+
+    uxo_masks, uxo_centroids = get_masks_centroids(img, depth, mini_mask, mini_centroids, window_size=window_size, dimension=dimension)
+
+    num_mini = uxo_centroids.shape[0]
+    num_large = np.array(large_centroids).shape[0]
+
+    mini_uxo_centroids = np.tile(uxo_centroids, num_large).reshape((num_mini, 2, num_large))
+    large_uxo_centroids = np.tile(large_centroids, num_mini).reshape((num_large, 2, num_mini))
+
+    distances = np.linalg.norm(large_uxo_centroids - mini_uxo_centroids.T, axis=1)
+    neighbors_count = np.sum(distances <= radius, axis=1)
+
+    uxo_masks = np.isin(large_mask, np.where(neighbors_count < neighbor_threshold)).astype(int)
     uxo_masks[uxo_masks == 0] = -1
 
     return apply_superpixel_masks(img, uxo_masks, mode='highlight')
 
 
 if __name__ == "__main__":
-    # save_features(FEATURES_2D_DIR, DEPTH_DIR, FEATURES_DIR)
+    save_features(FEATURES_2D_DIR, DEPTH_DIR, FEATURES_DIR, subset=100)
     # train_model(dimension='3')
-    # exit()
+    exit()
 
     image_paths = (
-        "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c03.png",
-        "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c04.png",
-        "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r02_c03.png",
-        "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r03_c03.png"
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c03.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c04.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r02_c03.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r03_c03.png"
     )
 
     depth_paths = (
-        "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c03.png",
-        "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c04.png",
-        "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r02_c03.png",
-        "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r03_c03.png"
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c03.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c04.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r02_c03.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r03_c03.png"
     )
 
     ts: list[threading.Thread] = []
     for i, (image_path, depth_path) in enumerate(zip(image_paths, depth_paths)):
-        func = lambda: cv2.imwrite(f"./inf_{i}.png", run_inference(image_path, depth_path, region_size=50, dimension='3'))
+        func = lambda: cv2.imwrite(f"./inf_{i}.png", get_masks_centroids(image_path, depth_path, region_size=50, dimension='3'))
         t = threading.Thread(target=func)
         ts.append(t)
         ts[-1].start()
@@ -171,8 +194,8 @@ if __name__ == "__main__":
     for t in ts:
         t.join()
 
-    # ortho_path = "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_mosaic.large.png"
-    # depth_path = "/home/lucky/Development/CIRS/BaselineModel/data/images/ortho_maps/plot1_depth.large.png"
+    # ortho_path = f"{ROOT_DIR}/data/images/ortho_maps/plot1_mosaic.large.png"
+    # depth_path = f"{ROOT_DIR}/data/images/ortho_maps/plot1_depth.large.png"
 
     # ortho_inf = run_inference(ortho_path, depth_path, region_size=200, dimension='25')
     # cv2.imwrite("./ortho_inference.png", ortho_inf)
