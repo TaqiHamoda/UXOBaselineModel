@@ -16,49 +16,41 @@ KERNELS = [
 ]
 
 
-def extract_color_features(images, bins=8):
-    color_features = [np.histogram(cv2.calcHist([img], [0], None, [bins], [0, 256]), bins=bins, range=(0, 256))[0] for img in images]
-    return np.nan_to_num([cf / (np.linalg.norm(cf) + 1e-8) for cf in color_features])
+def extract_color_features(image, bins=8, range=(0, 256)):
+    color_features, _ = np.histogram(cv2.calcHist([image], [0], None, [bins], range), bins=bins, range=range, density=True)
+    return color_features
 
 
-def extract_lbp_features(images, radius=3, n_points=24):
-    lbp_features = []
-    for img in images:
-        lbp_feature = local_binary_pattern(img, n_points, radius, method='uniform').flatten()
-        lbp_features.append(np.histogram(lbp_feature, int(np.max(lbp_feature) + 1))[0])
-    return np.nan_to_num(lbp_features)
+def extract_lbp_features(image, radius=3, n_points=24):
+    # https://scikit-image.org/docs/stable/auto_examples/features_detection/plot_local_binary_pattern.html
+    lbp_image = local_binary_pattern(image, n_points, radius, method='uniform')
+    
+    n_bins = int(np.max(lbp_image) + 1)
+    return extract_color_features(lbp_image, bins=n_bins, range=(0, n_bins))
 
 
-def extract_glcm_features(images, distances=[1], angles=[0, np.pi/4, np.pi/2, 3*np.pi/4], properties: List[Literal['contrast', 'dissimilarity', 'energy', 'homogeneity', 'correlation', 'ASM']] = ['energy', 'homogeneity']):
-    glcm_features = []
-    for img in images:
-        glcm = graycomatrix(img, distances=distances, angles=angles, symmetric=True, normed=True)
-        feats = [graycoprops(glcm, prop).flatten() for prop in properties]
-        glcm_features.append(feats)
-    return np.nan_to_num(glcm_features).reshape(len(images), -1)
+def extract_glcm_features(image, distances=[1], angles=[0, np.pi/4, np.pi/2, 3*np.pi/4], properties: List[Literal['contrast', 'dissimilarity', 'energy', 'homogeneity', 'correlation', 'ASM']] = ['dissimilarity', 'energy', 'homogeneity', 'correlation']):
+    # https://scikit-image.org/docs/stable/api/skimage.feature.html#skimage.feature.graycoprops
+    # https://scikit-image.org/docs/stable/auto_examples/features_detection/plot_glcm.html#sphx-glr-auto-examples-features-detection-plot-glcm-py
+    glcm = graycomatrix(image, distances=distances, angles=angles, symmetric=True, normed=True)
+    return np.concatenate([graycoprops(glcm, prop).flatten() for prop in properties])
 
 
-def extract_gabor_features(images):
+def extract_gabor_features(image):
     feats = []
-    for image in images:
-        gabor_features = np.zeros((len(KERNELS), 3), dtype=np.double)
-        for i, kernel in enumerate(KERNELS):
-            response_real = cv2.filter2D(src=image, ddepth=-1, kernel=np.real(kernel))
-            response_imag = cv2.filter2D(src=image, ddepth=-1, kernel=np.imag(kernel))
+    for kernel in KERNELS:
+        response_real = cv2.filter2D(src=image, ddepth=-1, kernel=np.real(kernel))
+        response_imag = cv2.filter2D(src=image, ddepth=-1, kernel=np.imag(kernel))
 
-            # Calculate features
-            response_squared = response_real**2 + response_imag**2
-            local_energy = np.sum(response_squared)
-            mean_amplitude = np.mean(np.sqrt(response_squared))
-            phase_amplitude = np.atan2(response_imag, response_real)
+        # Calculate features
+        response_squared = response_real**2 + response_imag**2
+        local_energy = np.sum(response_squared)
+        mean_amplitude = np.mean(np.sqrt(response_squared))
+        phase_amplitude = np.atan2(response_imag, response_real)
 
-            gabor_features[i, 0] = local_energy
-            gabor_features[i, 1] = mean_amplitude
-            gabor_features[i, 2] = phase_amplitude
+        feats.extend((local_energy, mean_amplitude, phase_amplitude))
 
-        feats.append(gabor_features.flatten())
-
-    return np.nan_to_num(feats)
+    return feats
 
 
 # 3D Features
@@ -108,7 +100,7 @@ def extract_principal_plane_features(depth_patch):
 
     # Perform least squares fitting
     # coeffs are p1, p2, p3, p4, p5, p6, p7, p8, and p9
-    coeffs, residuals, rank, singular_values = np.linalg.lstsq(A, z, rcond=None)
+    coeffs, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
 
     # Calculate the fitted z values using the polynomial equation
     z_fitted = (
@@ -185,26 +177,6 @@ def extract_curvatures_and_surface_normals(depth_patch):
     )
 
 
-def extract_symmetry_features(depth_patch):
-    """Calculate the mean and variance of the symmetry image."""
-
-    # Apply Log Gabor filter to get the symmetry image
-    feats = []
-    for kernel in KERNELS:
-        response_real = cv2.filter2D(src=depth_patch, ddepth=-1, kernel=np.real(kernel))
-        response_imag = cv2.filter2D(src=depth_patch, ddepth=-1, kernel=np.imag(kernel))
-
-        # Calculate features
-        response_squared = response_real**2 + response_imag**2
-        local_energy = np.sum(response_squared)
-        mean_amplitude = np.mean(np.sqrt(response_squared))
-        phase_amplitude = np.atan2(response_imag, response_real)
-
-        feats.extend((local_energy, mean_amplitude, phase_amplitude))
-
-    return feats
-
-
 def extract_features(images_gray, images_hsv, depth: np.ndarray | None=None) -> tuple[list[np.ndarray], list[np.ndarray]]:
     logger = lambda name, f: (print(f"Started processing {name}"), f(), print(f"Finished processing {name}"))
 
@@ -213,20 +185,20 @@ def extract_features(images_gray, images_hsv, depth: np.ndarray | None=None) -> 
     ts: list[Thread] = []
 
     # Add color features
-    func = lambda: features.update({'gray': extract_color_features(images_gray)})
+    func = lambda: features.update({'gray': np.nan_to_num([extract_color_features(img) for img in images_gray])})
     ts.append(Thread(target=logger, args=("Gray Color Features", func)))
 
     # Add color HSV features
-    func = lambda: features.update({'hsv': extract_color_features(images_hsv)})
+    func = lambda: features.update({'hsv': np.nan_to_num([extract_color_features(img) for img in images_hsv])})
     ts.append(Thread(target=logger, args=("HSV Color Features", func)))
 
-    func = lambda: features.update({'lbp': extract_lbp_features(images_gray)})
+    func = lambda: features.update({'lbp': np.nan_to_num([extract_lbp_features(img) for img in images_gray])})
     ts.append(Thread(target=logger, args=("LBP Features", func)))
 
-    func = lambda: features.update({'glcm': extract_glcm_features(images_gray)})
+    func = lambda: features.update({'glcm': np.nan_to_num([extract_glcm_features(img) for img in images_gray])})
     ts.append(Thread(target=logger, args=("GLCM Features", func)))
 
-    func = lambda: features.update({'gabor': extract_gabor_features(images_gray)})
+    func = lambda: features.update({'gabor': np.nan_to_num([extract_gabor_features(img) for img in images_gray])})
     ts.append(Thread(target=logger, args=("Gabor Features", func)))
 
     if depth is not None:
@@ -236,7 +208,7 @@ def extract_features(images_gray, images_hsv, depth: np.ndarray | None=None) -> 
         func = lambda: features.update({'curvatures': np.nan_to_num([extract_curvatures_and_surface_normals(d) for d in depth])})
         ts.append(Thread(target=logger, args=("Curvature and Surface Normal Features", func)))
 
-        func = lambda: features.update({'symmetry': np.nan_to_num([extract_symmetry_features(d) for d in depth])})
+        func = lambda: features.update({'symmetry': np.nan_to_num([extract_gabor_features(d) for d in depth])})
         ts.append(Thread(target=logger, args=("Symmetry Features", func)))
 
     for t in ts:
