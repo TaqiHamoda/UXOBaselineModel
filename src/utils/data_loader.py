@@ -48,6 +48,8 @@ def save_features(images_dir, depth_dir, features_dir, subset: int = 0):
     if not os.path.exists(features_dir) or not os.path.isdir(features_dir):
         os.mkdir(features_dir)
 
+    print("Loading data...")
+
     t_start = time.perf_counter()
     images, depth, labels = load_data(images_dir, depth_dir, subset)
 
