@@ -3,11 +3,10 @@ import os, pickle, datetime
 
 
 class ClassificationModel:
-    def __init__(self, model, kernel=None, model_dir: str='./models/', model_name: str=''):
+    def __init__(self, model, model_dir: str = './models/', model_name: str = ''):
         self.model = model
         self.model_dir = model_dir
         self.model_name = model_name
-        self.kernel = kernel
 
         if not os.path.exists(self.model_dir) or not os.path.isdir(self.model_dir):
             os.mkdir(self.model_dir)
@@ -19,7 +18,7 @@ class ClassificationModel:
         self.model_dir = model_name_dir
 
 
-    def train(self, X_train, y_train):
+    def train(self, X_train: np.ndarray, y_train: np.ndarray):
         """
         Train the SVM model on the provided data.
 
@@ -30,7 +29,7 @@ class ClassificationModel:
         self.model.fit(X_train, y_train)
 
 
-    def evaluate(self, X):
+    def evaluate(self, X: np.ndarray):
         """
         Evaluate the SVM model on the given data.
 
@@ -41,13 +40,6 @@ class ClassificationModel:
             np.array: Prediction for y vector
         """
         return self.model.predict(X)
-
-
-    def fit_transform(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
-        if self.kernel is None:
-            return X
-
-        return self.kernel.fit_transform(X)
 
 
     def save_model(self) -> None:
@@ -62,7 +54,7 @@ class ClassificationModel:
 
         model_path = os.path.join(self.model_dir, filename)
         with open(model_path, 'wb') as f:
-            pickle.dump({'model': self.model, 'kernel': self.kernel}, f)
+            pickle.dump(self.model, f)
 
 
     def load_model(self, filename: str) -> None:
@@ -75,9 +67,6 @@ class ClassificationModel:
         model_path = os.path.join(self.model_dir, filename)
         if os.path.exists(model_path):
             with open(model_path, 'rb') as f:
-                data = pickle.load(f)
-
-                self.model = data['model']
-                self.kernel = data['kernel']
+                self.model = pickle.load(f)
         else:
             raise FileNotFoundError(f"No model file found at {model_path}")

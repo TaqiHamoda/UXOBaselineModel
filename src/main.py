@@ -1,8 +1,12 @@
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.decomposition import PCA
+from sklearn.kernel_approximation import Nystroem
 import numpy as np
 import matplotlib.pyplot as plt
+from typing import Literal
 import datetime, cv2, os, gc, threading, pickle
 
 from utils.data_loader import load_features, save_features, extract_features
@@ -23,25 +27,31 @@ MODELS_DIR = f'{SOURCE_DIR}/data/models/'
 FEATURES_DIR = f'{SOURCE_DIR}/data/features/'
 
 
-def train_model(dimension='25'):
+def train_model(n_components: int = 100, dimension: Literal['2', '25', '3'] = '25'):
+    get_pipeline = lambda: Pipeline([
+        ('scaling', StandardScaler()),
+        ('kernel', Nystroem(n_jobs=-1, n_components=n_components)),
+        ('pca', PCA()),
+    ], verbose=True)
+
     # Load features and encode labels
-    X_data, labels = load_features(FEATURES_DIR, dim=dimension)
+    X_data, labels = load_features(FEATURES_DIR, dimension=dimension)
     le = LabelEncoder()
     y_data = le.fit_transform(labels)
 
     print(f"Training start time: {datetime.datetime.now().isoformat()}")
 
-    # Initialize the model and kernel transform
-    model = SVMLinearModel(model_dir=MODELS_DIR)
-    X_data = model.fit_transform(X_data, y_data)
+    pipeline = get_pipeline().fit(X_data)
+    with open(f"{FEATURES_DIR}/pipeline_{dimension}D.pkl", 'wb') as f:
+        pickle.dump(pipeline, f)
 
-    # Split the data into training and testing sets
+    # Transform and split the data into training and testing sets
+    X_data = pipeline.transform(X_data)
     X_train, X_test, y_train, y_test = train_test_split(X_data, y_data, stratify=y_data, test_size=0.1)
 
-    # Train model on full dataset
+    # Train model on full dataset and save it
+    model = SVMLinearModel(model_dir=MODELS_DIR)
     model.train(X_train, y_train)
-
-    # Save the trained model
     model.save_model()
 
     # Evaluate on the test set
@@ -54,6 +64,7 @@ def train_model(dimension='25'):
     with open(f"{RESULTS_DIR}/{model.model_name}_{dimension}D.txt", 'w') as f:
         y_test_original = le.inverse_transform(y_test)
         y_pred_original = le.inverse_transform(y_pred)
+        print(classification_report(y_test_original, y_pred_original, zero_division=0))
         print(classification_report(y_test_original, y_pred_original, zero_division=0), file=f)
 
 
@@ -97,7 +108,6 @@ def get_masks_centroids(img, depth, mask, centroids, window_size=400, dimension=
     print("Processing patches")
 
     gray_images, hsv_images = process_images(patches)
-
     features_2d, features_3d = extract_features(gray_images, hsv_images, None if dimension == '2' else depths)
     
     if dimension == '3':
@@ -167,7 +177,9 @@ def run_inference_neighbor_polling(image_path, depth_path, mini_mask, mini_centr
 
 if __name__ == "__main__":
     save_features(FEATURES_2D_DIR, DEPTH_DIR, FEATURES_DIR, subset=100)
-    # train_model(dimension='3')
+    train_model(dimension='2')
+    train_model(dimension='25')
+    train_model(dimension='3')
     exit()
 
     image_paths = (
@@ -186,7 +198,7 @@ if __name__ == "__main__":
 
     ts: list[threading.Thread] = []
     for i, (image_path, depth_path) in enumerate(zip(image_paths, depth_paths)):
-        func = lambda: cv2.imwrite(f"./inf_{i}.png", get_masks_centroids(image_path, depth_path, region_size=50, dimension='3'))
+        func = lambda: cv2.imwrite(f"./inf_{i}.png", run_inference(image_path, depth_path, region_size=50, dimension='3'))
         t = threading.Thread(target=func)
         ts.append(t)
         ts[-1].start()

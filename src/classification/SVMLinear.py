@@ -5,7 +5,7 @@ from .ClassificationModel import ClassificationModel
 
 
 class SVMLinearModel(ClassificationModel):
-    def __init__(self, C=1.0, class_weight: None | dict | Literal['balanced']='balanced', model_dir='./models/'):
+    def __init__(self, C: float = 1.0, class_weight: None | dict | Literal['balanced'] = 'balanced', model_dir: str = './models/'):
         """
         Initialize the SVM model with given hyperparameters.
 

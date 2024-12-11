@@ -1,9 +1,6 @@
-import os, cv2, msgpack, gc, pickle, time, random
+from typing import Literal
+import os, cv2, msgpack, gc, time, random
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
-from sklearn.decomposition import PCA
-from sklearn.kernel_approximation import Nystroem
 
 from .feature_extraction import extract_features
 from .image_processing import process_images
@@ -45,13 +42,8 @@ def load_data(images_dir: str, depth_dir: str | None = None, subset: int = 0) ->
     return np.array(images), depths if depths.size > 0 else None, labels
 
 
-def save_features(images_dir, depth_dir, features_dir, n_components=1000, subset: int = 0):
+def save_features(images_dir, depth_dir, features_dir, subset: int = 0):
     get_time = lambda t: round(time.perf_counter() - t, 2)
-    get_pipeline = lambda: Pipeline([
-        ('scaling', StandardScaler()),
-        ('kernel', Nystroem(n_jobs=-1, n_components=n_components)),
-        ('pca', PCA()),
-    ], verbose=True)
 
     if not os.path.exists(features_dir) or not os.path.isdir(features_dir):
         os.mkdir(features_dir)
@@ -83,61 +75,46 @@ def save_features(images_dir, depth_dir, features_dir, n_components=1000, subset
 
     print(f"Extracted features: {get_time(t_start)}s")
 
-    pipeline = get_pipeline()
     features = np.concatenate(features_3d, axis=1)
-
-    print(f"Features 3D Shape: {features.shape}")
-
-    features = pipeline.fit_transform(features)
-    with open(f"{features_dir}/pipeline_3D.pkl", 'wb') as f:
-        pickle.dump(pipeline, f)
-
     with open(f"{features_dir}/features_3D.msgpack", 'wb') as f:
         f.write(msgpack.packb(features.tolist()))
 
-    print("Saved normalized 3D features")
+    print(f"Features 3D Shape: {features.shape}")
 
-    pipeline = get_pipeline()
+    del features
+    gc.collect()
+
+    print("Saved 3D features")
+
     features = np.concatenate(features_2d + features_3d, axis=1)
-
-    print(f"Features 2.5D Shape: {features.shape}")
-
-    features = pipeline.fit_transform(features)
-    with open(f"{features_dir}/pipeline_25D.pkl", 'wb') as f:
-        pickle.dump(pipeline, f)
-
     with open(f"{features_dir}/features_25D.msgpack", 'wb') as f:
         f.write(msgpack.packb(features.tolist()))
 
-    del pipeline, features, features_3d
+    print(f"Features 2.5D Shape: {features.shape}")
+
+    del features, features_3d
     gc.collect()
 
     print("Saved normalized 2.5D features")
 
-    pipeline = get_pipeline()
     features = np.concatenate(features_2d, axis=1)
-
-    print(f"Features 2D Shape: {features.shape}")
-
-    features = pipeline.fit_transform(features)
-    with open(f"{features_dir}/pipeline_2D.pkl", 'wb') as f:
-        pickle.dump(pipeline, f)
-
     with open(f"{features_dir}/features_2D.msgpack", 'wb') as f:
         f.write(msgpack.packb(features.tolist()))
 
-    del pipeline, features, features_2d
+    print(f"Features 2D Shape: {features.shape}")
+
+    del features, features_2d
     gc.collect()
 
     print("Saved normalized 2D features")
 
 
-def load_features(features_dir: str, dim: str='2') -> tuple[np.ndarray, list[str]]:
-    if dim == '2':
+def load_features(features_dir: str, dimension: Literal['2', '25', '3'] = '2') -> tuple[np.ndarray, list[str]]:
+    if dimension == '2':
         print("Loading 2D Features")
         with open(f"{features_dir}/features_2D.msgpack", 'rb') as f:
             features = np.array(msgpack.unpackb(f.read()))
-    elif dim == '3':
+    elif dimension == '3':
         print("Loading 3D Features")
         with open(f"{features_dir}/features_3D.msgpack", 'rb') as f:
             features = np.array(msgpack.unpackb(f.read()))

@@ -1,10 +1,11 @@
+from typing import Literal
 from sklearn.neighbors import KNeighborsClassifier
 
 from .ClassificationModel import ClassificationModel
 
 
 class KNNModel(ClassificationModel):
-    def __init__(self, n_neighbors=5, weights='distance', model_dir='./models/'):
+    def __init__(self, n_neighbors: int = 5, weights: Literal['unifrom', 'distance'] = 'distance', model_dir: str = './models/'):
         """
         Initialize the KNN model with given hyperparameters.
 
