@@ -11,8 +11,6 @@ import datetime, cv2, os, gc, threading, pickle
 
 from utils.data_loader import load_features, save_features, extract_features
 from utils.image_processing import process_images, superpixel_segmentation, apply_superpixel_masks, calculate_centroids
-from classification.KNN import KNNModel
-from classification.SVM import SVMModel
 from classification.SVMLinear import SVMLinearModel
 
 
