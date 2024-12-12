@@ -105,7 +105,7 @@ def get_masks_centroids(img, depth, mask, centroids, window_size=400, dimension=
 
     gray_images, hsv_images = process_images(patches)
     features_2d, features_3d = extract_features(gray_images, hsv_images, None if dimension == '2' else depths)
-    
+
     if dimension == '3':
         features = np.concatenate(features_3d, axis=1)
     else:
