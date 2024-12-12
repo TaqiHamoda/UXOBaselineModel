@@ -7,7 +7,7 @@ from sklearn.kernel_approximation import Nystroem
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Literal
-import datetime, cv2, os, gc, threading, pickle
+import datetime, cv2, os, pickle, threading, gc, msgpack
 
 from utils.data_loader import load_features, save_features, extract_features
 from utils.image_processing import process_images, superpixel_segmentation, apply_superpixel_masks, calculate_centroids
@@ -67,8 +67,6 @@ def train_model(n_components: int = 100, dimension: Literal['2', '25', '3'] = '2
 
 
 def get_masks_centroids(img, depth, mask, centroids, window_size=400, dimension='25'):
-    print(f"Running inference ({dimension}D) on:\n{image_path}\n")
-
     # Cut out batches that are centered around the centroids
     patches = []
     depths = []
@@ -150,7 +148,7 @@ def run_inference(image_path, depth_path, region_size=400, window_size=400, dime
     return _run_inference(img, depth, mask, centroids, window_size=window_size, dimension=dimension)
 
 
-def run_inference_neighbor_polling(image_path, depth_path, mini_mask, mini_centroids, large_mask, large_centroids, window_size=400, dimension='25', radius=200, neighbor_threshold=4):
+def run_inference_neighbor_polling(image_path: str, depth_path: str, mini_mask: np.ndarray, mini_centroids: np.ndarray, large_mask: np.ndarray, large_centroids: np.ndarray, window_size: int = 400, dimension: Literal['2', '25', '3'] = '25', neighbor_threshold: int = 4):
     print(f"Running neighbor polling inference ({dimension}D) on:\n{image_path}\n")
 
     img = cv2.imread(image_path)
@@ -158,55 +156,72 @@ def run_inference_neighbor_polling(image_path, depth_path, mini_mask, mini_centr
 
     uxo_masks, uxo_centroids = get_masks_centroids(img, depth, mini_mask, mini_centroids, window_size=window_size, dimension=dimension)
 
-    num_mini = uxo_centroids.shape[0]
-    num_large = np.array(large_centroids).shape[0]
+    distances = []
+    for c in large_centroids:
+        distances.append(np.linalg.norm(c - uxo_centroids, axis=1))
 
-    mini_uxo_centroids = np.tile(uxo_centroids, num_large).reshape((num_mini, 2, num_large))
-    large_uxo_centroids = np.tile(large_centroids, num_mini).reshape((num_large, 2, num_mini))
+    distances = np.array(distances)
+    neighbors_count = np.sum(distances <= window_size//2, axis=1)  # Radius is half of the diameter
 
-    distances = np.linalg.norm(large_uxo_centroids - mini_uxo_centroids.T, axis=1)
-    neighbors_count = np.sum(distances <= radius, axis=1)
-
-    uxo_masks = np.isin(large_mask, np.where(neighbors_count < neighbor_threshold)).astype(int)
+    uxo_masks = np.isin(large_mask, np.where(neighbors_count >= neighbor_threshold)).astype(int)
     uxo_masks[uxo_masks == 0] = -1
 
     return apply_superpixel_masks(img, uxo_masks, mode='highlight')
 
 
 if __name__ == "__main__":
-    save_features(FEATURES_2D_DIR, DEPTH_DIR, FEATURES_DIR, subset=100)
-    train_model(dimension='2')
-    train_model(dimension='25')
-    train_model(dimension='3')
-    exit()
+    # save_features(FEATURES_2D_DIR, DEPTH_DIR, FEATURES_DIR, subset=100)
+    # train_model(dimension='2')
+    # train_model(dimension='25')
+    # train_model(dimension='3')
+    # exit()
 
-    image_paths = (
-        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c03.png",
-        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c04.png",
-        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r02_c03.png",
-        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r03_c03.png"
-    )
+    # image_paths = (
+    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c03.png",
+    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c04.png",
+    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r02_c03.png",
+    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r03_c03.png"
+    # )
 
-    depth_paths = (
-        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c03.png",
-        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c04.png",
-        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r02_c03.png",
-        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r03_c03.png"
-    )
+    # depth_paths = (
+    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c03.png",
+    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c04.png",
+    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r02_c03.png",
+    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r03_c03.png"
+    # )
 
-    ts: list[threading.Thread] = []
-    for i, (image_path, depth_path) in enumerate(zip(image_paths, depth_paths)):
-        func = lambda: cv2.imwrite(f"./inf_{i}.png", run_inference(image_path, depth_path, region_size=50, dimension='3'))
-        t = threading.Thread(target=func)
-        ts.append(t)
-        ts[-1].start()
+    # ts: list[threading.Thread] = []
+    # for i, (image_path, depth_path) in enumerate(zip(image_paths, depth_paths)):
+    #     func = lambda: cv2.imwrite(f"./inf_{i}.png", run_inference(image_path, depth_path, region_size=50, dimension='3'))
+    #     t = threading.Thread(target=func)
+    #     ts.append(t)
+    #     ts[-1].start()
 
-    for t in ts:
-        t.join()
+    # for t in ts:
+    #     t.join()
+    # exit()
 
-    # ortho_path = f"{ROOT_DIR}/data/images/ortho_maps/plot1_mosaic.large.png"
-    # depth_path = f"{ROOT_DIR}/data/images/ortho_maps/plot1_depth.large.png"
+    ortho_path = f"{SOURCE_DIR}/data/images/ortho_maps/plot1_mosaic.large.png"
+    depth_path = f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth.large.png"
+    mini_mask_path = f"{SOURCE_DIR}/data/images/ortho_maps/mask_50_plot1.msgpack"
+    mini_centroids_path = f"{SOURCE_DIR}/data/images/ortho_maps/centroids_50_plot1.msgpack"
+    large_mask_path = f"{SOURCE_DIR}/data/images/ortho_maps/mask_400_plot1.msgpack"
+    large_centroids_path = f"{SOURCE_DIR}/data/images/ortho_maps/centroids_400_plot1.msgpack"
 
-    # ortho_inf = run_inference(ortho_path, depth_path, region_size=200, dimension='25')
-    # cv2.imwrite("./ortho_inference.png", ortho_inf)
+    ortho_inf = run_inference(ortho_path, depth_path, region_size=400, dimension='25')
+    cv2.imwrite("./ortho_inference.png", ortho_inf)
 
+    with open(mini_mask_path, "rb") as f:
+        mini_mask = np.array(msgpack.unpackb(f.read()))
+
+    with open(mini_centroids_path, "rb") as f:
+        mini_centroids = np.array(msgpack.unpackb(f.read()))
+
+    with open(large_mask_path, "rb") as f:
+        large_mask = np.array(msgpack.unpackb(f.read()))
+
+    with open(large_centroids_path, "rb") as f:
+        large_centroids = np.array(msgpack.unpackb(f.read()))
+
+    ortho_inf = run_inference_neighbor_polling(ortho_path, depth_path, mini_mask, mini_centroids, large_mask, large_centroids, dimension='25', neighbor_threshold=16)
+    cv2.imwrite("./ortho_inference.png", ortho_inf)
