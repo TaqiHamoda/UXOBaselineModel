@@ -20,7 +20,7 @@ def extract_color_features(image, bins=8, range=(0, 256)):
     return color_features
 
 
-def extract_lbp_features(image, radius=3, n_points=24):
+def extract_lbp_features(image, n_points=24, radius=3):
     # https://scikit-image.org/docs/stable/auto_examples/features_detection/plot_local_binary_pattern.html
     lbp_image = local_binary_pattern(image, n_points, radius, method='uniform')
 
