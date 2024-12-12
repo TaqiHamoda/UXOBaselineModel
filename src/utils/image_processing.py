@@ -12,10 +12,10 @@ def color_correct(image: np.ndarray, method: Literal['clahe', 'saturation', 'his
         hsv_image = cv2.merge((h, s, v))
         corrected_image = cv2.cvtColor(hsv_image, cv2.COLOR_HSV2BGR)
     elif method == 'histogram':
-        # Convert to HSV color space
-        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        hsv_image[:, :, 2] = cv2.equalizeHist(hsv_image[:, :, 2])  # The value (V channel) is the intensity of the image (gray scale)
-        corrected_image = cv2.cvtColor(hsv_image, cv2.COLOR_HSV2BGR)
+        # Convert to YUV color space
+        yuv_image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
+        yuv_image[:, :, 0] = cv2.equalizeHist(yuv_image[:, :, 0])  # The luma (Y channel) is the intensity of the image (gray scale)
+        corrected_image = cv2.cvtColor(hsv_image, cv2.COLOR_YUV2BGR)
     elif method == 'clahe':
         # Convert to YUV color space
         yuv_image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
