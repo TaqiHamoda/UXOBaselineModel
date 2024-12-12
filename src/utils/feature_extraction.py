@@ -15,45 +15,51 @@ KERNELS = [
 ]
 
 
-def extract_color_features(image, bins=8, range=(0, 256)):
+def extract_color_features(image: np.ndarray, bins: int = 8, range: tuple[int, int] = (0, 256)) -> np.ndarray:
     color_features, _ = np.histogram(image.flatten(), bins=bins, range=range, density=True)
     return color_features
 
 
-def extract_lbp_features(image, n_points=24, radius=3):
+def extract_lbp_features(image: np.ndarray, n_points: int = 24, radius: float = 3.0) -> np.ndarray:
     # https://scikit-image.org/docs/stable/auto_examples/features_detection/plot_local_binary_pattern.html
     lbp_image = local_binary_pattern(image, n_points, radius, method='uniform')
 
-    n_bins = int(n_points + 2)  # Uniform lbp has max(lbp_image) = n_points + 1, and n_bins = max(lbp_image) + 1
+    n_bins = n_points + 2  # Uniform lbp has max(lbp_image) = n_points + 1, and n_bins = max(lbp_image) + 1
     return extract_color_features(lbp_image, bins=n_bins, range=(0, n_bins))
 
 
-def extract_glcm_features(image, distances=[1], angles=[0, np.pi/4, np.pi/2, 3*np.pi/4], properties: List[Literal['contrast', 'dissimilarity', 'energy', 'homogeneity', 'correlation', 'ASM']] = ['dissimilarity', 'energy', 'homogeneity', 'correlation']):
+def extract_glcm_features(image: np.ndarray, distances: list[int] = [1], angles: list[float] = [0, np.pi/4, np.pi/2, 3*np.pi/4], properties: List[Literal['contrast', 'dissimilarity', 'energy', 'homogeneity', 'correlation', 'ASM']] = ['dissimilarity', 'energy', 'homogeneity', 'correlation']) -> np.ndarray:
     # https://scikit-image.org/docs/stable/api/skimage.feature.html#skimage.feature.graycoprops
     # https://scikit-image.org/docs/stable/auto_examples/features_detection/plot_glcm.html#sphx-glr-auto-examples-features-detection-plot-glcm-py
     glcm = graycomatrix(image, distances=distances, angles=angles, symmetric=True, normed=True)
     return np.concatenate([graycoprops(glcm, prop).flatten() for prop in properties])
 
 
-def extract_gabor_features(image):
+def extract_gabor_features(image: np.ndarray) -> list[float]:
+    # TODO: Use log gabor filters to speed up runtime (https://peterkovesi.com/matlabfns/PhaseCongruency/Docs/convexpl.html)
     feats = []
     for kernel in KERNELS:
         response_real = cv2.filter2D(src=image, ddepth=-1, kernel=np.real(kernel))
         response_imag = cv2.filter2D(src=image, ddepth=-1, kernel=np.imag(kernel))
 
         # Calculate features
+        # Source: https://stackoverflow.com/questions/20608458/gabor-feature-extraction
         response_squared = response_real**2 + response_imag**2
         local_energy = np.sum(response_squared)
         mean_amplitude = np.mean(np.sqrt(response_squared))
         phase_amplitude = np.atan2(response_imag, response_real).flatten()
 
-        feats.extend((local_energy, mean_amplitude, np.mean(phase_amplitude), np.std(phase_amplitude), skew(phase_amplitude), kurtosis(phase_amplitude)))
+        feats.extend((
+            local_energy,             mean_amplitude,
+            np.mean(phase_amplitude), np.std(phase_amplitude),
+            skew(phase_amplitude),    kurtosis(phase_amplitude)
+        ))
 
     return feats
 
 
 # 3D Features
-def extract_principal_plane_features(depth_patch):
+def extract_principal_plane_features(depth_patch: np.ndarray) -> list[float]:
     triangle_area = lambda p_1, p_2, p_3: np.linalg.norm(np.cross(p_2 - p_1, p_3 - p_1), axis=2) / 2 
 
     # Create a grid of x and y coordinates
@@ -116,8 +122,6 @@ def extract_principal_plane_features(depth_patch):
 
     # Calculate the distances from each point to the fitted plane
     distances = np.abs(z - z_fitted)
-
-    # Calculate mean and standard deviation of the distances
     mean_distance = np.mean(distances)
     std_distance = np.std(distances)
 
@@ -126,16 +130,15 @@ def extract_principal_plane_features(depth_patch):
     n_x = coeffs[1]  # Coefficient for x
     n_y = coeffs[2]  # Coefficient for y
 
-    # Calculate the magnitude of the normal vector
+    # Calculate angle with repsect to the vertical using the magnitude of the normal vector
     normal_magnitude = np.sqrt(n_x**2 + n_y**2 + n_z**2)
-
-    # Calculate the angle with respect to the vertical
     theta = np.degrees(np.arccos(n_z / normal_magnitude))
 
     return [np.std(z), skew(z), kurtosis(z)] + coeffs.tolist() + [theta, mean_distance, std_distance, rugosity]
 
 
-def extract_curvatures_and_surface_normals(depth_patch):
+def extract_curvatures_and_surface_normals(depth_patch: np.ndarray) -> list[float]:
+    # TODO: Double check and validate results
     dx, dy = np.gradient(depth_patch)
     dxdx, dxdy = np.gradient(dx)
     dydx, dydy = np.gradient(dy)
@@ -164,7 +167,7 @@ def extract_curvatures_and_surface_normals(depth_patch):
     alpha = np.arctan2(ny, nx)  # Angle in the xy-plane
     beta = np.arctan2(nz, np.sqrt(nx**2 + ny**2))  # Angle from the z-axis
 
-    return (
+    return [
         np.mean(G),     np.std(G),
         np.mean(M),     np.std(M),
         np.mean(k1),    np.std(k1),
@@ -173,10 +176,10 @@ def extract_curvatures_and_surface_normals(depth_patch):
         np.mean(C),     np.std(C),
         np.mean(alpha), np.std(alpha),
         np.mean(beta),  np.std(beta)
-    )
+    ]
 
 
-def extract_features(images_gray, images_hsv, depth: np.ndarray | None=None) -> tuple[list[np.ndarray], list[np.ndarray]]:
+def extract_features(images_gray: list[np.ndarray], images_hsv: list[np.ndarray], depth: list[np.ndarray] | None=None) -> tuple[list[np.ndarray], list[np.ndarray]]:
     logger = lambda name, t, f: (print(f"Started processing {name}"), f(), print(f"Finished processing {name}: {round(time.perf_counter() - t, 2)} seconds"))
 
     features = {}

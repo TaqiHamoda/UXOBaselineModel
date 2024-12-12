@@ -3,21 +3,7 @@ from typing import Literal
 import cv2, gc
 
 
-def color_correct(image: np.ndarray, method: Literal['clahe', 'saturation', 'histogram', 'manual']='clahe', percent=50, alpha=1.0, beta=0, clip_limit=2.0, tile_grid_size=(8, 8)):
-    """
-    Color correct an image using the specified method.
-
-    Parameters:
-        image (numpy.ndarray): Input image in BGR format.
-        method (str): Method of color correction ('saturation', 'histogram', 'clahe', 'manual').
-        alpha (float): Contrast control for manual adjustment (1.0-3.0).
-        beta (int): Brightness control for manual adjustment (0-100).
-        clip_limit (float): Clip limit for CLAHE.
-        tile_grid_size (tuple): Tile grid size for CLAHE.
-
-    Returns:
-        numpy.ndarray: Color corrected image.
-    """
+def color_correct(image: np.ndarray, method: Literal['clahe', 'saturation', 'histogram', 'manual'] = 'clahe', percent: float = 50.0, alpha: float = 1.0, beta: float = 0, clip_limit: float = 2.0, tile_grid_size: tuple[int, int] = (8, 8)) -> np.ndarray:
     if method == 'saturation':
         # Convert to HSV color space
         hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -43,16 +29,7 @@ def color_correct(image: np.ndarray, method: Literal['clahe', 'saturation', 'his
     return corrected_image
 
 
-def contrast_stretch(image: np.ndarray):
-    """
-    Apply contrast stretching to an image.
-
-    Parameters:
-        image (numpy.ndarray): Input image in grayscale format.
-
-    Returns:
-        numpy.ndarray: Contrast stretched image.
-    """
+def contrast_stretch(image: np.ndarray) -> np.ndarray:
     # Convert to float to avoid overflow during calculations
     image_float = image.astype(np.float32)
 
@@ -65,9 +42,9 @@ def contrast_stretch(image: np.ndarray):
     return np.clip(stretched_image, 0, 255).astype(np.uint8)
 
 
-def superpixel_segmentation(image: np.ndarray, region_size=40, ruler=10.0, n_iters=10) -> np.ndarray:
+def superpixel_segmentation(image: np.ndarray, region_size: int = 40, ruler: float = 10.0, n_iters: int = 10) -> np.ndarray:
     # OpenCV Documentation: https://docs.opencv.org/3.4/df/d6c/group__ximgproc__superpixel.html#gacf29df20eaca242645a8d3a2d88e6c06
-    
+
     # Create SLIC superpixels
     slic = cv2.ximgproc.createSuperpixelSLIC(image, region_size=region_size, ruler=ruler, algorithm=cv2.ximgproc.SLICO)
     slic.iterate(n_iters)  # Number of iterations
@@ -76,7 +53,7 @@ def superpixel_segmentation(image: np.ndarray, region_size=40, ruler=10.0, n_ite
     return slic.getLabels()
 
 
-def apply_superpixel_masks(image: np.ndarray, mask: list[np.ndarray], mode: Literal['average', 'contours', 'highlight']='average', border_color: tuple[int, int, int]=(255, 255, 255), border_thickness: int=2, highlight_color: tuple[int, int, int]=(0, 0, 255), alpha: float=0.3) -> list[np.ndarray]:
+def apply_superpixel_masks(image: np.ndarray, mask: list[np.ndarray], mode: Literal['average', 'contours', 'highlight'] = 'average', border_color: tuple[int, int, int] = (255, 255, 255), border_thickness: int = 2, highlight_color: tuple[int, int, int] = (0, 0, 255), alpha: float = 0.3) -> list[np.ndarray]:
     output_image = None
 
     if mode == 'average':
@@ -146,7 +123,7 @@ def calculate_centroids(mask: list[np.ndarray]) -> list[np.ndarray]:
     return np.array(centroids, dtype=int)
 
 
-def process_images(images: list[np.ndarray], correct_color=True, stretch_contrast=True, clip_limit=40.0, tile_grid_size=(8, 8)) -> tuple[np.ndarray, np.ndarray]:
+def process_images(images: list[np.ndarray], correct_color: bool = True, stretch_contrast: bool = True, clip_limit: float = 40.0, tile_grid_size: tuple[int, int] = (8, 8)) -> tuple[np.ndarray, np.ndarray]:
     images_gray = []
     images_hsv = []
     

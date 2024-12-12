@@ -171,10 +171,10 @@ def run_inference_neighbor_polling(image_path: str, depth_path: str, mini_mask: 
 
 if __name__ == "__main__":
     # save_features(FEATURES_2D_DIR, DEPTH_DIR, FEATURES_DIR, subset=100)
-    # train_model(dimension='2')
-    # train_model(dimension='25')
-    # train_model(dimension='3')
-    # exit()
+    train_model(dimension='2')
+    train_model(dimension='25')
+    train_model(dimension='3')
+    exit()
 
     # image_paths = (
     #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c03.png",
@@ -201,24 +201,24 @@ if __name__ == "__main__":
     #     t.join()
     # exit()
 
-    ortho_path = f"{SOURCE_DIR}/data/images/ortho_maps/plot1_mosaic.large.png"
-    depth_path = f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth.large.png"
-    mini_mask_path = f"{SOURCE_DIR}/data/images/ortho_maps/mask_50_plot1.msgpack"
-    mini_centroids_path = f"{SOURCE_DIR}/data/images/ortho_maps/centroids_50_plot1.msgpack"
-    large_mask_path = f"{SOURCE_DIR}/data/images/ortho_maps/mask_400_plot1.msgpack"
-    large_centroids_path = f"{SOURCE_DIR}/data/images/ortho_maps/centroids_400_plot1.msgpack"
+    # ortho_path = f"{SOURCE_DIR}/data/images/ortho_maps/plot1_mosaic.large.png"
+    # depth_path = f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth.large.png"
+    # mini_mask_path = f"{SOURCE_DIR}/data/images/ortho_maps/mask_50_plot1.msgpack"
+    # mini_centroids_path = f"{SOURCE_DIR}/data/images/ortho_maps/centroids_50_plot1.msgpack"
+    # large_mask_path = f"{SOURCE_DIR}/data/images/ortho_maps/mask_400_plot1.msgpack"
+    # large_centroids_path = f"{SOURCE_DIR}/data/images/ortho_maps/centroids_400_plot1.msgpack"
 
-    with open(mini_mask_path, "rb") as f:
-        mini_mask = np.array(msgpack.unpackb(f.read()))
+    # with open(mini_mask_path, "rb") as f:
+    #     mini_mask = np.array(msgpack.unpackb(f.read()))
 
-    with open(mini_centroids_path, "rb") as f:
-        mini_centroids = np.array(msgpack.unpackb(f.read()))
+    # with open(mini_centroids_path, "rb") as f:
+    #     mini_centroids = np.array(msgpack.unpackb(f.read()))
 
-    with open(large_mask_path, "rb") as f:
-        large_mask = np.array(msgpack.unpackb(f.read()))
+    # with open(large_mask_path, "rb") as f:
+    #     large_mask = np.array(msgpack.unpackb(f.read()))
 
-    with open(large_centroids_path, "rb") as f:
-        large_centroids = np.array(msgpack.unpackb(f.read()))
+    # with open(large_centroids_path, "rb") as f:
+    #     large_centroids = np.array(msgpack.unpackb(f.read()))
 
-    ortho_inf = run_inference_neighbor_polling(ortho_path, depth_path, mini_mask, mini_centroids, large_mask, large_centroids, dimension='25', neighbor_threshold=16)
-    cv2.imwrite("./ortho_inference.png", ortho_inf)
+    # ortho_inf = run_inference_neighbor_polling(ortho_path, depth_path, mini_mask, mini_centroids, large_mask, large_centroids, dimension='25', neighbor_threshold=16)
+    # cv2.imwrite("./ortho_inference.png", ortho_inf)

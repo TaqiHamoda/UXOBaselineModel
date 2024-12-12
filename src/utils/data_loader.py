@@ -42,7 +42,7 @@ def load_data(images_dir: str, depth_dir: str | None = None, subset: int = 0) ->
     return np.array(images), depths if depths.size > 0 else None, labels
 
 
-def save_features(images_dir, depth_dir, features_dir, subset: int = 0):
+def save_features(images_dir: str, depth_dir: str, features_dir: str, subset: int = 0):
     get_time = lambda t: round(time.perf_counter() - t, 2)
 
     if not os.path.exists(features_dir) or not os.path.isdir(features_dir):
