@@ -208,9 +208,6 @@ if __name__ == "__main__":
     large_mask_path = f"{SOURCE_DIR}/data/images/ortho_maps/mask_400_plot1.msgpack"
     large_centroids_path = f"{SOURCE_DIR}/data/images/ortho_maps/centroids_400_plot1.msgpack"
 
-    ortho_inf = run_inference(ortho_path, depth_path, region_size=400, dimension='25')
-    cv2.imwrite("./ortho_inference.png", ortho_inf)
-
     with open(mini_mask_path, "rb") as f:
         mini_mask = np.array(msgpack.unpackb(f.read()))
 
