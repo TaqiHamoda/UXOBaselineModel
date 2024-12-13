@@ -179,7 +179,7 @@ def extract_curvatures_and_surface_normals(depth_patch: np.ndarray) -> list[floa
     ]
 
 
-def extract_features(images_gray: list[np.ndarray], images_hsv: list[np.ndarray], depth: list[np.ndarray] | None=None) -> tuple[list[np.ndarray], list[np.ndarray]]:
+def extract_features(images_gray: list[np.ndarray], images_hsv: list[np.ndarray], depth: list[np.ndarray] | None=None) -> tuple[np.ndarray, np.ndarray]:
     logger = lambda name, t, f: (print(f"Started processing {name}"), f(), print(f"Finished processing {name}: {round(time.perf_counter() - t, 2)} seconds"))
 
     features = {}
@@ -187,30 +187,30 @@ def extract_features(images_gray: list[np.ndarray], images_hsv: list[np.ndarray]
     ts: list[Thread] = []
 
     # Add color features
-    func = lambda: features.update({'gray': np.nan_to_num([extract_color_features(img) for img in images_gray])})
+    func = lambda: features.update({'gray': [extract_color_features(img) for img in images_gray]})
     ts.append(Thread(target=logger, args=("Gray Color Features", time.perf_counter(), func)))
 
     # Add color HSV features
-    func = lambda: features.update({'hsv': np.nan_to_num([extract_color_features(img[:, :, 0]) for img in images_hsv])})
+    func = lambda: features.update({'hsv': [extract_color_features(img[:, :, 0]) for img in images_hsv]})
     ts.append(Thread(target=logger, args=("HSV Color Features", time.perf_counter(), func)))
 
-    func = lambda: features.update({'lbp': np.nan_to_num([extract_lbp_features(img) for img in images_gray])})
+    func = lambda: features.update({'lbp': [extract_lbp_features(img) for img in images_gray]})
     ts.append(Thread(target=logger, args=("LBP Features", time.perf_counter(), func)))
 
-    func = lambda: features.update({'glcm': np.nan_to_num([extract_glcm_features(img) for img in images_gray])})
+    func = lambda: features.update({'glcm': [extract_glcm_features(img) for img in images_gray]})
     ts.append(Thread(target=logger, args=("GLCM Features", time.perf_counter(), func)))
 
-    func = lambda: features.update({'gabor': np.nan_to_num([extract_gabor_features(img) for img in images_gray])})
+    func = lambda: features.update({'gabor': [extract_gabor_features(img) for img in images_gray]})
     ts.append(Thread(target=logger, args=("Gabor Features", time.perf_counter(), func)))
 
     if depth is not None:
-        func = lambda: features.update({'principal plane': np.nan_to_num([extract_principal_plane_features(d) for d in depth])})
+        func = lambda: features.update({'principal plane': [extract_principal_plane_features(d) for d in depth]})
         ts.append(Thread(target=logger, args=("Principal Plane Features", time.perf_counter(), func)))
 
-        func = lambda: features.update({'curvatures': np.nan_to_num([extract_curvatures_and_surface_normals(d) for d in depth])})
+        func = lambda: features.update({'curvatures': [extract_curvatures_and_surface_normals(d) for d in depth]})
         ts.append(Thread(target=logger, args=("Curvature and Surface Normal Features", time.perf_counter(), func)))
 
-        func = lambda: features.update({'symmetry': np.nan_to_num([extract_gabor_features(d) for d in depth])})
+        func = lambda: features.update({'symmetry': [extract_gabor_features(d) for d in depth]})
         ts.append(Thread(target=logger, args=("Symmetry Features", time.perf_counter(), func)))
 
     for t in ts:
@@ -219,10 +219,10 @@ def extract_features(images_gray: list[np.ndarray], images_hsv: list[np.ndarray]
     for t in ts:
         t.join()
 
-    features_2d = [features['gray'], features['hsv'], features['lbp'], features['glcm'], features['gabor']]
+    features_2d = np.concatenate([features['gray'], features['hsv'], features['lbp'], features['glcm'], features['gabor']], axis=1)
+
     features_3d = []
-
     if depth is not None:
-        features_3d = [features['principal plane'], features['curvatures'], features['symmetry']]
+        features_3d = np.concatenate([features['principal plane'], features['curvatures'], features['symmetry']], axis=1)
 
-    return features_2d, features_3d
+    return np.nan_to_num(features_2d), np.nan_to_num(features_3d)

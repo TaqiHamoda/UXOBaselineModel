@@ -77,18 +77,13 @@ def save_features(images_dir: str, depth_dir: str, features_dir: str, subset: in
 
     print(f"Extracted features: {get_time(t_start)}s")
 
-    features = np.concatenate(features_3d, axis=1)
+    features = features_3d
     with open(f"{features_dir}/features_3D.msgpack", 'wb') as f:
         f.write(msgpack.packb(features.tolist()))
 
     print(f"Features 3D Shape: {features.shape}")
 
-    del features
-    gc.collect()
-
-    print("Saved 3D features")
-
-    features = np.concatenate(features_2d + features_3d, axis=1)
+    features = np.concatenate([features_2d, features_3d], axis=1)
     with open(f"{features_dir}/features_25D.msgpack", 'wb') as f:
         f.write(msgpack.packb(features.tolist()))
 
@@ -97,9 +92,7 @@ def save_features(images_dir: str, depth_dir: str, features_dir: str, subset: in
     del features, features_3d
     gc.collect()
 
-    print("Saved normalized 2.5D features")
-
-    features = np.concatenate(features_2d, axis=1)
+    features = features_2d
     with open(f"{features_dir}/features_2D.msgpack", 'wb') as f:
         f.write(msgpack.packb(features.tolist()))
 
@@ -107,8 +100,6 @@ def save_features(images_dir: str, depth_dir: str, features_dir: str, subset: in
 
     del features, features_2d
     gc.collect()
-
-    print("Saved normalized 2D features")
 
 
 def load_features(features_dir: str, dimension: Literal['2', '25', '3'] = '2') -> tuple[np.ndarray, list[str]]:

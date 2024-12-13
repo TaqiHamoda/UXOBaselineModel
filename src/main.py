@@ -10,7 +10,7 @@ from typing import Literal
 import datetime, cv2, os, pickle, threading, gc, msgpack
 
 from utils.data_loader import load_features, save_features, extract_features
-from utils.image_processing import process_images, superpixel_segmentation, apply_superpixel_masks, calculate_centroids
+from utils.image_processing import process_images, superpixel_segmentation, apply_mask
 from classification.SVMLinear import SVMLinearModel
 
 
@@ -66,7 +66,7 @@ def train_model(n_components: int = 100, dimension: Literal['2', '25', '3'] = '2
         print(classification_report(y_test_original, y_pred_original, zero_division=0), file=f)
 
 
-def get_masks_centroids(img, depth, mask, centroids, window_size=400, dimension='25'):
+def get_mask_centroids(img, depth, labels, centroids, window_size=400, dimension='25'):
     # Cut out batches that are centered around the centroids
     patches = []
     depths = []
@@ -107,9 +107,11 @@ def get_masks_centroids(img, depth, mask, centroids, window_size=400, dimension=
     features_2d, features_3d = extract_features(gray_images, hsv_images, None if dimension == '2' else depths)
 
     if dimension == '3':
-        features = np.concatenate(features_3d, axis=1)
+        features = features_3d
+    elif dimension == '2':
+        features = features_2d
     else:
-        features = np.concatenate(features_2d + features_3d, axis=1)
+        features = np.concatenate([features_2d, features_3d], axis=1)
 
     with open(f"{FEATURES_DIR}/pipeline_{dimension}D.pkl", 'rb') as f:
         pipeline = pickle.load(f)
@@ -126,13 +128,13 @@ def get_masks_centroids(img, depth, mask, centroids, window_size=400, dimension=
 
     uxo_centroids = np.where(y_pred == 1)
 
-    uxo_masks = np.isin(mask, uxo_centroids).astype(int)
-    uxo_masks[uxo_masks == 0] = -1
-    return uxo_masks, centroids[uxo_centroids]
+    uxo_mask = np.isin(labels, uxo_centroids).astype(int)
+    uxo_mask[uxo_mask == 0] = -1
+    return uxo_mask, centroids[uxo_centroids]
 
-def _run_inference(img, depth, mask, centroids, window_size=400, dimension='25'):
-    uxo_masks, _ = get_masks_centroids(img, depth, mask, centroids, window_size=window_size, dimension=dimension)
-    return apply_superpixel_masks(img, uxo_masks, mode='highlight')
+def _run_inference(img, depth, labels, centroids, window_size=400, dimension='25'):
+    uxo_masks, _ = get_mask_centroids(img, depth, labels, centroids, window_size=window_size, dimension=dimension)
+    return apply_mask(img, uxo_masks, mode='highlight')
 
 
 def run_inference(image_path, depth_path, region_size=400, window_size=400, dimension='25'):
@@ -142,10 +144,9 @@ def run_inference(image_path, depth_path, region_size=400, window_size=400, dime
     depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
 
     print("Applying Superpixel Segmentation")
-    mask = superpixel_segmentation(img, ruler=1, region_size=region_size)
-    centroids = calculate_centroids(mask)
+    labels, centroids, _ = superpixel_segmentation(img, ruler=1, region_size=region_size)
 
-    return _run_inference(img, depth, mask, centroids, window_size=window_size, dimension=dimension)
+    return _run_inference(img, depth, labels, centroids, window_size=window_size, dimension=dimension)
 
 
 def run_inference_neighbor_polling(image_path: str, depth_path: str, mini_mask: np.ndarray, mini_centroids: np.ndarray, large_mask: np.ndarray, large_centroids: np.ndarray, window_size: int = 400, dimension: Literal['2', '25', '3'] = '25', neighbor_threshold: int = 4):
@@ -154,7 +155,7 @@ def run_inference_neighbor_polling(image_path: str, depth_path: str, mini_mask: 
     img = cv2.imread(image_path)
     depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
 
-    uxo_masks, uxo_centroids = get_masks_centroids(img, depth, mini_mask, mini_centroids, window_size=window_size, dimension=dimension)
+    uxo_mask, uxo_centroids = get_mask_centroids(img, depth, mini_mask, mini_centroids, window_size=window_size, dimension=dimension)
 
     distances = []
     for c in large_centroids:
@@ -163,43 +164,43 @@ def run_inference_neighbor_polling(image_path: str, depth_path: str, mini_mask: 
     distances = np.array(distances)
     neighbors_count = np.sum(distances <= window_size//2, axis=1)  # Radius is half of the diameter
 
-    uxo_masks = np.isin(large_mask, np.where(neighbors_count >= neighbor_threshold)).astype(int)
-    uxo_masks[uxo_masks == 0] = -1
+    uxo_mask = np.isin(large_mask, np.where(neighbors_count >= neighbor_threshold)).astype(int)
+    uxo_mask[uxo_mask == 0] = -1
 
-    return apply_superpixel_masks(img, uxo_masks, mode='highlight')
+    return apply_mask(img, uxo_mask, mode='highlight')
 
 
 if __name__ == "__main__":
     # save_features(FEATURES_2D_DIR, DEPTH_DIR, FEATURES_DIR, subset=100)
-    train_model(dimension='2')
-    train_model(dimension='25')
-    train_model(dimension='3')
-    exit()
-
-    # image_paths = (
-    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c03.png",
-    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c04.png",
-    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r02_c03.png",
-    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r03_c03.png"
-    # )
-
-    # depth_paths = (
-    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c03.png",
-    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c04.png",
-    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r02_c03.png",
-    #     f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r03_c03.png"
-    # )
-
-    # ts: list[threading.Thread] = []
-    # for i, (image_path, depth_path) in enumerate(zip(image_paths, depth_paths)):
-    #     func = lambda: cv2.imwrite(f"./inf_{i}.png", run_inference(image_path, depth_path, region_size=50, dimension='3'))
-    #     t = threading.Thread(target=func)
-    #     ts.append(t)
-    #     ts[-1].start()
-
-    # for t in ts:
-    #     t.join()
+    # train_model(dimension='2')
+    # train_model(dimension='25')
+    # train_model(dimension='3')
     # exit()
+
+    image_paths = (
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c03.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r01_c04.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r02_c03.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_tiles/plot1_18_240424_t2_ortho_r03_c03.png"
+    )
+
+    depth_paths = (
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c03.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r01_c04.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r02_c03.png",
+        f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth/plot1_18_240424_t2_ortho_r03_c03.png"
+    )
+
+    ts: list[threading.Thread] = []
+    for i, (image_path, depth_path) in enumerate(zip(image_paths, depth_paths)):
+        func = lambda: cv2.imwrite(f"./inf_{i}.png", run_inference(image_path, depth_path, region_size=400, dimension='25'))
+        t = threading.Thread(target=func)
+        ts.append(t)
+        ts[-1].start()
+
+    for t in ts:
+        t.join()
+    exit()
 
     # ortho_path = f"{SOURCE_DIR}/data/images/ortho_maps/plot1_mosaic.large.png"
     # depth_path = f"{SOURCE_DIR}/data/images/ortho_maps/plot1_depth.large.png"
