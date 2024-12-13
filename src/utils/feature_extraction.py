@@ -2,7 +2,7 @@ from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 from scipy.stats import skew, kurtosis
 from typing import List, Literal
 from threading import Thread
-import cv2, numpy as np, time
+import cv2, numpy as np, time, datetime
 
 
 # https://stackoverflow.com/questions/33781502/how-to-get-the-real-and-imaginary-parts-of-a-gabor-kernel-matrix-in-opencv
@@ -180,7 +180,11 @@ def extract_curvatures_and_surface_normals(depth_patch: np.ndarray) -> list[floa
 
 
 def extract_features(images_gray: list[np.ndarray], images_hsv: list[np.ndarray], depth: list[np.ndarray] | None=None) -> tuple[np.ndarray, np.ndarray]:
-    logger = lambda name, t, f: (print(f"Started processing {name}"), f(), print(f"Finished processing {name}: {round(time.perf_counter() - t, 2)} seconds"))
+    logger = lambda name, t, f: (
+        print(f"Started processing {name}: {datetime.datetime.now().isoformat()}"),
+        f(),
+        print(f"Finished processing {name}: {round(time.perf_counter() - t, 2)} seconds")
+    )
 
     features = {}
 
