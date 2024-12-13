@@ -1,19 +1,11 @@
-from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
 from typing import Literal
 
 from .ClassificationModel import ClassificationModel
 
 
 class SVMModel(ClassificationModel):
-    def __init__(self, kernel: Literal['linear', 'poly', 'rbf', 'sigmoid', 'precomputed'] = 'rbf', C: float = 1.0, class_weight: None | dict | Literal['balanced'] = 'balanced', model_dir: str = './models/'):
-        """
-        Initialize the SVM model with given hyperparameters.
+    def __init__(self, C: float = 1.0, class_weight: None | dict | Literal['balanced'] = 'balanced', model_dir: str = './models/', standardize: bool = True, pca: bool = True, kernel_mapping: bool = True, n_components: int = 100):
+        model = LinearSVC(C=C, class_weight=class_weight)  # Class weights are automatically assigned to account for unbalance
 
-        Args:
-            kernel (str): Kernel type to be used in the algorithm ('linear', 'poly', 'rbf', 'sigmoid').
-            C (float): Penalty parameter of the error term.
-            model_dir (str): The path to the directory where the model be saved/loaded from.
-        """
-        model = SVC(kernel=kernel, C=C, class_weight=class_weight)  # Class weights are automatically assigned to account for unbalance
-
-        super().__init__(model, model_dir=model_dir, model_name='SVM')
+        super().__init__(model, model_dir=model_dir, model_name='SVM', standardize=standardize, pca=pca, kernel_mapping=kernel_mapping, n_components=n_components)

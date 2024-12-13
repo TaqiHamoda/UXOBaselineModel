@@ -1,7 +1,7 @@
               precision    recall  f1-score   support
 
   background       0.97      0.96      0.97     13790
-         uxo       0.93      0.95      0.94      6991
+         uxo       0.93      0.94      0.94      6991
 
     accuracy                           0.96     20781
    macro avg       0.95      0.95      0.95     20781

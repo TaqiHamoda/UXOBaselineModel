@@ -1,10 +1,26 @@
 import numpy as np
 import os, pickle, datetime
 
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.decomposition import PCA
+from sklearn.kernel_approximation import Nystroem
+
+
+class _ClassificationModel:
+    def __init__(self, model):
+        self.model = model
+
+    def fit(self, X: np.ndarray, y: np.ndarray):
+        self.model.fit(X, y)
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        return self.model.predict(X)
+
 
 class ClassificationModel:
-    def __init__(self, model, model_dir: str = './models/', model_name: str = ''):
-        self.model = model
+    def __init__(self, model, model_dir: str = './models/', model_name: str = '', standardize: bool = True, pca: bool = True, kernel_mapping: bool = True, n_components: int = 100):
         self.model_dir = model_dir
         self.model_name = model_name
 
@@ -17,6 +33,20 @@ class ClassificationModel:
 
         self.model_dir = model_name_dir
 
+        pipeline = []
+        if standardize:
+            pipeline.append(('scaling', StandardScaler()))
+
+        if kernel_mapping:
+            pipeline.append(('kernel', Nystroem(n_jobs=-1, n_components=n_components)))
+
+        if pca:
+            pipeline.append(('pca', PCA()))
+
+        pipeline.append(('training', _ClassificationModel(model)))
+
+        self.model = Pipeline(pipeline, verbose=True)
+
 
     def train(self, X_train: np.ndarray, y_train: np.ndarray):
         """
@@ -26,7 +56,7 @@ class ClassificationModel:
             X_train (np.array): Training features.
             y_train (np.array): Training labels.
         """
-        self.model.fit(X_train, y_train)
+        return self.model.fit_transform(X_train, y_train,)
 
 
     def evaluate(self, X: np.ndarray):
@@ -39,7 +69,7 @@ class ClassificationModel:
         Returns:
             np.array: Prediction for y vector
         """
-        return self.model.predict(X)
+        return self.model.transform(X)
 
 
     def save_model(self) -> None:

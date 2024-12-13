@@ -1,9 +1,7 @@
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.decomposition import PCA
-from sklearn.kernel_approximation import Nystroem
+
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Literal
@@ -11,7 +9,7 @@ import datetime, cv2, os, pickle, threading, gc, msgpack
 
 from utils.data_loader import load_features, save_features, extract_features
 from utils.image_processing import process_images, superpixel_segmentation, apply_mask
-from classification.SVMLinear import SVMLinearModel
+from classification.SVM import SVMModel
 
 
 SOURCE_DIR = '/home/lucky/Development/CIRS/UXOBaselineModel/'
@@ -26,12 +24,6 @@ FEATURES_DIR = f'{SOURCE_DIR}/data/features/'
 
 
 def train_model(n_components: int = 100, dimension: Literal['2', '25', '3'] = '25'):
-    get_pipeline = lambda: Pipeline([
-        ('scaling', StandardScaler()),
-        ('kernel', Nystroem(n_jobs=-1, n_components=n_components)),
-        ('pca', PCA()),
-    ], verbose=True)
-
     # Load features and encode labels
     X_data, labels = load_features(FEATURES_DIR, dimension=dimension)
     le = LabelEncoder()
@@ -39,16 +31,11 @@ def train_model(n_components: int = 100, dimension: Literal['2', '25', '3'] = '2
 
     print(f"Training start time: {datetime.datetime.now().isoformat()}")
 
-    pipeline = get_pipeline().fit(X_data)
-    with open(f"{FEATURES_DIR}/pipeline_{dimension}D.pkl", 'wb') as f:
-        pickle.dump(pipeline, f)
-
     # Transform and split the data into training and testing sets
-    X_data = pipeline.transform(X_data)
     X_train, X_test, y_train, y_test = train_test_split(X_data, y_data, stratify=y_data, test_size=0.1)
 
     # Train model on full dataset and save it
-    model = SVMLinearModel(model_dir=MODELS_DIR)
+    model = SVMModel(model_dir=MODELS_DIR, n_components=n_components)
     model.train(X_train, y_train)
     model.save_model()
 
@@ -97,7 +84,7 @@ def get_mask_centroids(img, depth, labels, centroids, window_size=400, dimension
         d = d.astype(np.double)
         d -= np.min(d)
         d /= np.max(d)
-        d = ((255*d).astype(np.uint8)).astype(np.double)
+        d = np.nan_to_num(255*d).astype(np.uint8).astype(np.double)
 
         depths.append(d)
 
@@ -113,24 +100,20 @@ def get_mask_centroids(img, depth, labels, centroids, window_size=400, dimension
     else:
         features = np.concatenate([features_2d, features_3d], axis=1)
 
-    with open(f"{FEATURES_DIR}/pipeline_{dimension}D.pkl", 'rb') as f:
-        pipeline = pickle.load(f)
-
-    features = pipeline.transform(features)
-
     print("Loading model and running inference")
 
     # SVM Model
-    model = SVMLinearModel(model_dir=MODELS_DIR)
-    model.load_model(f"SVMLinear_{dimension}D.pkl")
+    model = SVMModel(model_dir=MODELS_DIR)
+    model.load_model(f"SVM_{dimension}D.pkl")
 
     y_pred = model.evaluate(features)
 
     uxo_centroids = np.where(y_pred == 1)
-
     uxo_mask = np.isin(labels, uxo_centroids).astype(int)
     uxo_mask[uxo_mask == 0] = -1
+
     return uxo_mask, centroids[uxo_centroids]
+
 
 def _run_inference(img, depth, labels, centroids, window_size=400, dimension='25'):
     uxo_masks, _ = get_mask_centroids(img, depth, labels, centroids, window_size=window_size, dimension=dimension)
