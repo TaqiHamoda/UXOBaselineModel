@@ -28,7 +28,7 @@ def extract_lbp_features(image: np.ndarray, n_points: int = 24, radius: float = 
     return extract_color_features(lbp_image, bins=n_bins, range=(0, n_bins))
 
 
-def extract_glcm_features(image: np.ndarray, distances: list[int] = [1], angles: list[float] = [0, np.pi/4, np.pi/2, 3*np.pi/4], properties: List[Literal['contrast', 'dissimilarity', 'energy', 'homogeneity', 'correlation', 'ASM']] = ['dissimilarity', 'energy', 'homogeneity', 'correlation']) -> np.ndarray:
+def extract_glcm_features(image: np.ndarray, distances: list[int] = [1], angles: list[float] = [0, np.pi/4, np.pi/2, 3*np.pi/4], properties: List[Literal['contrast', 'dissimilarity', 'energy', 'homogeneity', 'correlation', 'ASM']] = ['dissimilarity', 'energy', 'homogeneity']) -> np.ndarray:
     # https://scikit-image.org/docs/stable/api/skimage.feature.html#skimage.feature.graycoprops
     # https://scikit-image.org/docs/stable/auto_examples/features_detection/plot_glcm.html#sphx-glr-auto-examples-features-detection-plot-glcm-py
     glcm = graycomatrix(image, distances=distances, angles=angles, symmetric=True, normed=True)
@@ -138,7 +138,6 @@ def extract_principal_plane_features(depth_patch: np.ndarray) -> list[float]:
 
 
 def extract_curvatures_and_surface_normals(depth_patch: np.ndarray) -> list[float]:
-    # TODO: Double check and validate results
     dx, dy = np.gradient(depth_patch)
     dxdx, dxdy = np.gradient(dx)
     dydx, dydy = np.gradient(dy)

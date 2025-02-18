@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Literal
-import cv2, gc
+import cv2
 
 
 def color_correct(image: np.ndarray, clip_limit: float = 2.0, tile_grid_size: tuple[int, int] = (8, 8)) -> np.ndarray:
@@ -31,7 +31,7 @@ def contrast_stretch(image: np.ndarray) -> np.ndarray:
     return np.clip(255 * stretched_image, 0, 255).astype(np.uint8)
 
 
-def superpixel_segmentation(image: np.ndarray, region_size: int = 40, ruler: float = 10.0, n_iters: int = 10) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def superpixel_segmentation(image: np.ndarray, region_size: int = 40, ruler: float = 10.0, n_iters: int = 10) -> tuple[np.ndarray, np.ndarray]:
     # OpenCV Documentation: https://docs.opencv.org/3.4/df/d6c/group__ximgproc__superpixel.html#gacf29df20eaca242645a8d3a2d88e6c06
 
     # Create SLIC superpixels
@@ -42,7 +42,7 @@ def superpixel_segmentation(image: np.ndarray, region_size: int = 40, ruler: flo
     labels = slic.getLabels()
     centroids = np.array([np.median(np.where(labels == l), axis=1)[::-1] for l in np.unique(labels)], dtype=int)
 
-    return labels, centroids, slic.getLabelContourMask()
+    return labels, centroids
 
 
 def apply_mask(image: np.ndarray, mask: np.ndarray, mode: Literal['contours', 'highlight'] = 'highlight', border_color: tuple[np.uint8, np.uint8, np.uint8] = (255, 255, 255), border_thickness: int = 2, highlight_color: tuple[np.uint8, np.uint8, np.uint8] = (0, 0, 255), alpha: float = 0.3) -> np.ndarray:

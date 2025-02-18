@@ -1,5 +1,5 @@
 # User-defined
-legacy/
+datasets/
 *.tif
 *.pkl
 *.msgpack
