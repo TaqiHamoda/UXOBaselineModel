@@ -17,9 +17,9 @@ ADJUST_COOR = lambda c, r, rnge: (0, 2*r) if c - r < 0 else (rnge[1] - 1 - 2*r, 
 SOURCE_DIR = '/home/lucky/Development/CIRS/UXOBaselineModel/'
 
 # Constants for directory paths
-IMAGES_DIR = f'{SOURCE_DIR}/data/images/'
-IMG_DIR = f'{SOURCE_DIR}/data/datasets/miami/dataset_2d/'
-DEPTH_DIR = f'{SOURCE_DIR}/data/datasets/miami/dataset_3d/'
+IMAGES_DIR = f'{SOURCE_DIR}/data/tiles/'
+IMG_DIR = f'{SOURCE_DIR}/data/datasets/2D/'
+DEPTH_DIR = f'{SOURCE_DIR}/data/datasets/3D/'
 RESULTS_DIR = f'{SOURCE_DIR}/data/results/'
 MODELS_DIR = f'{SOURCE_DIR}/data/models/'
 FEATURES_DIR = f'{SOURCE_DIR}/data/features/'
