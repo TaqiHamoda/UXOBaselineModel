@@ -1,0 +1,38 @@
+directories:
+  source_dir: './'
+  tiles_dir: 'data/tiles'
+  dataset_dir: 'data/dataset'
+  results_dir: 'data/results'
+  models_dir: 'data/models'
+  features_dir: 'data/features'
+
+create_dataset:
+  enabled: true
+  bg_per_img: 20000
+  thread_count: 64
+  uxo_sample_rate: 0.01
+  uxo_threshold: 0.4
+  invalid_threshold: 0.01
+  window_size: 400
+  patch_size: 128
+  angles: [0, 90, 180, 270]
+
+train_model:
+  enabled: true
+  test_size: 0.1
+  n_components: 100
+  dimension: '25'
+  use_saved_features: true
+  subset_size: 0
+
+run_inference:
+  enabled: true
+  image_path: path/to/image.png
+  depth_path: path/to/depth.png
+  model_name: svm_model.pkl
+  region_size: 400
+  window_size: 400
+  patch_size: 128
+  subdivide_axis: 3
+  threshold: 3
+  dimension: '25'
