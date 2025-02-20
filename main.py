@@ -120,7 +120,20 @@ def create_dataset(image, depth, mask, dataset_dir, prefix='', bg_per_img=20_000
     for i in range(thread_count):
         ts.append(threading.Thread(
             target=process_data,
-            args=(image, depth, mask, indices[i*indices_count:(i + 1)*indices_count], bg_count, dataset_dir, prefix, uxo_threshold, invalid_threshold, window_size, patch_size, angles)
+            args=(
+                image,
+                depth,
+                mask,
+                indices[i*indices_count:(i + 1)*indices_count],
+                bg_count,
+                dataset_dir,
+                f"{prefix}_{i}",
+                uxo_threshold,
+                invalid_threshold,
+                window_size,
+                patch_size,
+                angles
+            )
         ))
         ts[-1].start()
 
