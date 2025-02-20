@@ -36,6 +36,8 @@ def reconstruct_mosaic(tiles_path):
 
 
 def process_data(image, depth, mask, indices, bg_max, dataset_dir, prefix, uxo_threshold, invalid_threshold, window_size, patch_size, angles):
+    print("Started thread")
+
     bg_count = 0
     w, h = mask.shape
     t, m, d = None, None, None
@@ -83,7 +85,7 @@ def process_data(image, depth, mask, indices, bg_max, dataset_dir, prefix, uxo_t
 
 
 def create_dataset(image, depth, mask, dataset_dir, prefix='', bg_per_img=20_000, thread_count=64, uxo_sample_rate=0.01, uxo_threshold=0.4, invalid_threshold=0.01, window_size=400, patch_size=128, angles=(0, 90, 180, 270)):
-    print(f"Started processing image")
+    print(f"Started processing image {prefix}")
 
     mask[mask < 3] = 0  # Set Non-UXO pixels to 0
     mask[mask == 99] = -1  # Set invalid areas to -1
@@ -93,7 +95,7 @@ def create_dataset(image, depth, mask, dataset_dir, prefix='', bg_per_img=20_000
     if np.all(np.unique(mask) == -1):
         del image, mask, depth
         gc.collect()
-        print("Finished processing image")
+        print(f"Finished processing image {prefix}")
         return
 
     uxo_indices = np.where(mask == 1)
@@ -123,7 +125,7 @@ def create_dataset(image, depth, mask, dataset_dir, prefix='', bg_per_img=20_000
     for t in ts:
         t.join()
 
-    print("Finished processing image")
+    print(f"Finished processing image {prefix}")
 
     del image, mask, depth, indices
     gc.collect()
@@ -259,11 +261,9 @@ if __name__ == "__main__":
         exit()
 
     # Create directories if they don't exist
-    for dir_path in [dataset_dir, results_dir, models_dir, features_dir]:
-        os.mkdir(dir_path)
-
-    os.mkdir(f"{dataset_dir}/2D/")
-    os.mkdir(f"{dataset_dir}/3D/")
+    for dir_path in [dataset_dir, results_dir, models_dir, features_dir, f"{dataset_dir}/2D/", f"{dataset_dir}/3D/"]:
+        if not os.path.exists(dir_path) or not os.path.isdir(dir_path):
+            os.mkdir(dir_path)
 
     # Process according to config modes
     if config['create_dataset']['enabled']:
@@ -272,7 +272,7 @@ if __name__ == "__main__":
         for dtset in os.listdir(tiles_dir):
             image = reconstruct_mosaic(f"{tiles_dir}/{dtset}/images")
             depth = reconstruct_mosaic(f"{tiles_dir}/{dtset}/depths")
-            mask = reconstruct_mosaic(f"{tiles_dir}/{dtset}/masks")
+            mask = reconstruct_mosaic(f"{tiles_dir}/{dtset}/masks").astype(np.int16)
 
             create_dataset(
                 image, 
