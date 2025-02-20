@@ -7,7 +7,7 @@ directories:
   features_dir: 'data/features'
 
 create_dataset:
-  enabled: true
+  enabled: false
   bg_per_img: 20000
   thread_count: 64
   uxo_sample_rate: 0.01
@@ -22,7 +22,7 @@ train_model:
   test_size: 0.1
   n_components: 100
   dimension: '25'
-  use_saved_features: true
+  use_saved_features: false
   subset_size: 0
 
 run_inference:
