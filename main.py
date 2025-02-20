@@ -67,6 +67,7 @@ def process_data(image, depth, mask, indices, bg_max, dataset_dir, prefix, uxo_t
         d = np.astype(255 * d, np.uint8)
 
         if np.sum(m == 1)/m.size >= uxo_threshold:
+            print("Writing UXO")
             h_img, w_img = d.shape
             for angle in angles:
                 M = cv2.getRotationMatrix2D((w_img//2, h_img//2), angle, 1)  # Center, rotation angle, scale
@@ -79,6 +80,7 @@ def process_data(image, depth, mask, indices, bg_max, dataset_dir, prefix, uxo_t
             del t_rot, d_rot
             gc.collect()
         elif np.all(m == 0) and bg_count < bg_max:
+            print("Writing Background")
             cv2.imwrite(f"{dataset_dir}/2D/background/{prefix}-{i}.png", t)
             cv2.imwrite(f"{dataset_dir}/3D/background/{prefix}-{i}.png", d)
             bg_count += 1
@@ -261,7 +263,7 @@ if __name__ == "__main__":
         exit()
 
     # Create directories if they don't exist
-    for dir_path in [dataset_dir, results_dir, models_dir, features_dir, f"{dataset_dir}/2D/", f"{dataset_dir}/3D/"]:
+    for dir_path in [dataset_dir, results_dir, models_dir, features_dir, f"{dataset_dir}/2D/", f"{dataset_dir}/2D/uxo", f"{dataset_dir}/2D/background", f"{dataset_dir}/3D/", f"{dataset_dir}/3D/uxo", f"{dataset_dir}/3D/background"]:
         if not os.path.exists(dir_path) or not os.path.isdir(dir_path):
             os.mkdir(dir_path)
 
