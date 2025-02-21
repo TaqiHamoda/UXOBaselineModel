@@ -334,4 +334,4 @@ if __name__ == "__main__":
             dimension=config['run_inference']['dimension']
         )
 
-        cv2.imwrite(f"{dataset_dir}/results/inference.png", result)
+        cv2.imwrite(f"{results_dir}/inference.png", result)
