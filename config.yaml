@@ -18,7 +18,7 @@ create_dataset:
   angles: [0, 90, 180, 270]
 
 train_model:
-  enabled: false
+  enabled: true
   test_size: 0.1
   n_components: 100
   dimension: '25'
@@ -26,7 +26,7 @@ train_model:
   subset_size: 0
 
 run_inference:
-  enabled: true
+  enabled: false
   image_path: data/tiles/plot1/images/plot1_18_240424_t2_ortho_r03_c02.png
   depth_path: data/tiles/plot1/depths/plot1_18_240424_t2_ortho_r03_c02.png
   model_name: SVM_25D.pkl
