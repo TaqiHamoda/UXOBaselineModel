@@ -22,7 +22,7 @@ train_model:
   test_size: 0.1
   n_components: 100
   dimension: '25'
-  use_saved_features: false
+  use_saved_features: true
   subset_size: 0
 
 run_inference:
