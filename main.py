@@ -321,7 +321,7 @@ if __name__ == "__main__":
 
     if config['run_inference']['enabled']:
         print("Running inference...")
-        run_inference(
+        result = run_inference(
             image_path=config['run_inference']['image_path'],
             depth_path=config['run_inference']['depth_path'],
             models_dir=models_dir,
@@ -333,3 +333,5 @@ if __name__ == "__main__":
             threshold=config['run_inference']['threshold'],
             dimension=config['run_inference']['dimension']
         )
+
+        cv2.imwrite(f"{dataset_dir}/results/inference.png", result)
