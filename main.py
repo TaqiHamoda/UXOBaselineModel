@@ -245,6 +245,8 @@ def run_inference(image_path, depth_path, models_dir, model_name, region_size=40
 
     y_pred = model.evaluate(features)
 
+    print(np.unique(y_pred))
+
     uxos = patches[np.where(y_pred == 1)]
     for uxo in np.unique(uxos):
         if uxos[uxos == uxo].size < threshold:

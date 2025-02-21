@@ -29,7 +29,7 @@ run_inference:
   enabled: true
   image_path: data/tiles/plot1/images/plot1_18_240424_t2_ortho_r03_c02.png
   depth_path: data/tiles/plot1/depths/plot1_18_240424_t2_ortho_r03_c02.png
-  model_name: SVM-25.pkl
+  model_name: SVM_25D.pkl
   region_size: 400
   window_size: 400
   patch_size: 128
