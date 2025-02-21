@@ -56,7 +56,8 @@ class ClassificationModel:
             X_train (np.array): Training features.
             y_train (np.array): Training labels.
         """
-        return self.model.fit_transform(X_train, y_train,)
+        self.model = self.model.fit(X_train, y_train)
+        return self.model.transform(X_train)
 
 
     def evaluate(self, X: np.ndarray):
